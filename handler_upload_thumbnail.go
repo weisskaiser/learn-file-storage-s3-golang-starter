@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -61,8 +63,16 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	b := make([]byte, 32)
+	_, err = rand.Read(b)
+	fileName := base64.RawURLEncoding.EncodeToString(b)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to prepare the thumbnail file name", err)
+		return
+	}
 	fileExtension := strings.Split(contentType, "/")[1]
-	targetPath := filepath.Join(cfg.assetsRoot, videoIDString+"."+fileExtension)
+	targetPath := filepath.Join(cfg.assetsRoot, fileName+"."+fileExtension)
+
 	fp, err := os.Create(targetPath)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to start saving thumbnail", err)
@@ -74,7 +84,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusInternalServerError, "Unable to save thumbnail", err)
 		return
 	}
-	thumbnailUrl := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoIDString, fileExtension)
+	thumbnailUrl := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, fileName, fileExtension)
 	video.ThumbnailURL = &thumbnailUrl
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to save video information", err)
